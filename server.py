@@ -32,6 +32,7 @@ EXIT_PHRASES = [
 
 app = Flask(__name__)
 
+# Load data function
 def load_data(file_path):
     if os.path.exists(file_path):
         with open(file_path, "r") as file:
@@ -42,10 +43,12 @@ def load_data(file_path):
                 return {}
     return {}
 
+# Save data function
 def save_data(file_path, data):
     with open(file_path, "w") as file:
         json.dump(data, file, indent=4)
 
+# Generate Order ID
 def generate_order_id():
     with ORDER_ID_LOCK:
         if not os.path.exists(ORDER_ID_FILE):
@@ -60,6 +63,7 @@ def generate_order_id():
             f.write(f"{new_id:04d}")
         return f"{new_id:04d}"
 
+# Flask Routes
 @app.route('/chat', methods=['POST'])
 def chat():
     data = request.get_json()
