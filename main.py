@@ -189,7 +189,8 @@ def process_message(user_input):
     global session_data, orders, customers
 
     if session_data["state"] == ConversationState.GREETING:
-        return start_conversation()
+        session_data["state"] = ConversationState.ASK_PHONE
+        return "Welcome to SliceSync! Can I get your phone number, please? (10 digits)"
 
     if any(phrase in user_input.lower() for phrase in EXIT_PHRASES):
         session_data["state"] = ConversationState.END
@@ -203,10 +204,6 @@ def process_message(user_input):
         return "Thanks for visiting SliceSync! Have a great day!"
 
     state = session_data["state"]
-
-    if state == ConversationState.GREETING:
-        session_data["state"] = ConversationState.ASK_PHONE
-        return "Welcome to SliceSync! Can I get your phone number, please? (10 digits)"
 
     if state == ConversationState.ASK_PHONE:
         if re.match(r"^\d{10}$", user_input.strip()):
