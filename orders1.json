@@ -1,0 +1,82 @@
+{
+    "9c71a179-e3c3-47bf-a289-b94dded69175": {
+        "customer_name": "soulemane",
+        "phone_number": "3475445527",
+        "order_details": {
+            "order_time": "2024-12-13 22:55:42.799335",
+            "pizza": {
+                "quantity": 1,
+                "size": "Large",
+                "toppings": "Cheese"
+            },
+            "delivery_method": "pickup",
+            "address": null,
+            "payment_method": "Card"
+        },
+        "status": "Received"
+    },
+    "79dd5cd6-a870-437b-8ebe-b1a5de57e1c2": {
+        "customer_name": "soulemane",
+        "phone_number": "3475445527",
+        "order_details": {
+            "order_time": "2024-12-13 22:58:21.487974",
+            "pizza": {
+                "quantity": 1,
+                "size": "Large",
+                "toppings": "Cheese"
+            },
+            "delivery_method": "pickup",
+            "address": null,
+            "payment_method": "Card"
+        },
+        "status": "Received"
+    },
+    "9c3d5adf-2418-4051-9b14-66971bb5f9b1": {
+        "customer_name": "soulemane",
+        "phone_number": "3475445527",
+        "order_details": {
+            "order_time": "2024-12-14 09:37:27.789134",
+            "pizza": {
+                "quantity": 1,
+                "size": "Large",
+                "toppings": "Cheese"
+            },
+            "delivery_method": "pickup",
+            "address": null,
+            "payment_method": "Card"
+        },
+        "status": "Received"
+    },
+    "9ba8b495-a477-4e18-ae8f-7823fe75dd03": {
+        "customer_name": "Zaker",
+        "phone_number": "3477890779",
+        "order_details": {
+            "order_time": "2024-12-14 09:44:25.976244",
+            "pizza": {
+                "quantity": 1,
+                "size": "Large",
+                "toppings": "Cheese"
+            },
+            "delivery_method": "pickup",
+            "address": null,
+            "payment_method": "Card"
+        },
+        "status": "Received"
+    },
+    "7eabc8ab-2387-47d6-8747-bbf189da09dc": {
+        "customer_name": "soulemane",
+        "phone_number": "3475445527",
+        "order_details": {
+            "order_time": "2024-12-14 10:03:14.653786",
+            "pizza": {
+                "quantity": 1,
+                "size": "Large",
+                "toppings": "Cheese"
+            },
+            "delivery_method": "pickup",
+            "address": null,
+            "payment_method": "Cash"
+        },
+        "status": "Received"
+    }
+}
