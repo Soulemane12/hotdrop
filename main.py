@@ -178,7 +178,6 @@ session_data = {
     "awaiting_payment": False,
     "awaiting_confirmation": False
 }
-
 def process_message(user_input):
     global session_data, orders, customers
 
@@ -322,13 +321,37 @@ def process_message(user_input):
                 msg += "We'll deliver it to you soon!"
             else:
                 msg += "It will be ready for pickup in about 20-25 minutes."
-            session_data["state"] = ConversationState.END
+            session_data = reset_session_data()  
             return msg
         else:
             session_data["state"] = ConversationState.COLLECTING_ORDER
             return "No problem! Let me know if you'd like to make any changes or try something else."
 
     if state == ConversationState.END:
+        session_data = reset_session_data()  
         return "Thanks for visiting! Have a great day!"
 
     return "I'm not sure how to help with that. Please clarify."
+
+def reset_session_data():
+    return {
+        "state": ConversationState.GREETING,
+        "phone_number": None,
+        "customer_name": None,
+        "order_details": {
+            "pizzas": [],
+            "beverages": [],
+            "extras": [],
+            "delivery_method": None,
+            "address": None,
+            "payment_method": None,
+            "order_time": None
+        },
+        "awaiting_pizza_details": False,
+        "awaiting_extras_for_pizza": False,
+        "awaiting_beverages": False,
+        "awaiting_delivery_method": False,
+        "awaiting_address": False,
+        "awaiting_payment": False,
+        "awaiting_confirmation": False
+    }
