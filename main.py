@@ -163,21 +163,12 @@ session_data = {
     "phone_number": None,
     "customer_name": None,
     "order_details": {
-        "pizzas": [],
-        "beverages": [],
-        "extras": [],
+        "items": [],
         "delivery_method": None,
         "address": None,
         "payment_method": None,
         "order_time": None
-    },
-    "awaiting_pizza_details": False,
-    "awaiting_extras_for_pizza": False,
-    "awaiting_beverages": False,
-    "awaiting_delivery_method": False,
-    "awaiting_address": False,
-    "awaiting_payment": False,
-    "awaiting_confirmation": False
+    }
 }
 
 def start_conversation():
@@ -233,13 +224,16 @@ def process_message(user_input):
             size = match.group(2).capitalize() if match.group(2) else "Medium"
             toppings = match.group(3).strip().title() if match.group(3) else None
 
-            session_data["order_details"]["pizzas"].append({
+            pizza_item = {
+                "name": "pizza",
                 "quantity": quantity,
                 "size": size,
-                "toppings": toppings,
+                "toppings": toppings if toppings else "Cheese",
                 "extras": [],
                 "price": calculate_price('pizza', {"quantity": quantity, "size": size, "toppings": toppings})
-            })
+            }
+            
+            session_data["order_details"]["items"].append(pizza_item)
 
             if not toppings:
                 session_data["state"] = ConversationState.ASK_TOPPINGS
@@ -253,16 +247,16 @@ def process_message(user_input):
     if state == ConversationState.ASK_TOPPINGS:
         if user_input.lower() not in ["no", "none", "n/a"]:
             toppings = [topping.strip().title() for topping in user_input.split(",")]
-            session_data["order_details"]["pizzas"][-1]["toppings"] = ", ".join(toppings)
+            session_data["order_details"]["items"][-1]["toppings"] = ", ".join(toppings)
         else:
-            session_data["order_details"]["pizzas"][-1]["toppings"] = "Cheese"
+            session_data["order_details"]["items"][-1]["toppings"] = "Cheese"
         session_data["state"] = ConversationState.ASK_EXTRAS_FOR_PIZZA
         return "Would you like any extras for your pizza(s)? (e.g., extra cheese, garlic sauce). If no, reply 'no'."
 
     if state == ConversationState.ASK_EXTRAS_FOR_PIZZA:
         if user_input.lower() not in ["no", "none", "n/a"]:
             extras = [extra.strip().title() for extra in user_input.split(",")]
-            session_data["order_details"]["pizzas"][-1]["extras"] = extras
+            session_data["order_details"]["items"][-1]["extras"] = extras
         session_data["state"] = ConversationState.ASK_BEVERAGES
         return "Would you like to add any beverages? (e.g., 2 coke, 1 sprite). If no, reply 'no'."
 
@@ -271,24 +265,25 @@ def process_message(user_input):
             beverage_pattern = r"(\d+)\s+([a-zA-Z\s]+)"
             matches = re.findall(beverage_pattern, user_input.lower())
             for q, item in matches:
-                session_data["order_details"]["beverages"].append({
+                beverage_item = {
+                    "name": "beverage",
                     "quantity": int(q),
                     "item": item.strip().title(),
                     "price": calculate_price('beverage', {"quantity": int(q), "item": item.strip().title()})
-                })
+                }
+                session_data["order_details"]["items"].append(beverage_item)
         session_data["state"] = ConversationState.ASK_ADDITIONAL_EXTRAS
         return "Would you like to add any extras? (e.g., garlic bread, brownies). If no, reply 'no'."
 
     if state == ConversationState.ASK_ADDITIONAL_EXTRAS:
         if user_input.lower() not in ["no", "none", "n/a"]:
-            extras_list = []
             for extra in user_input.split(","):
-                extra_item = extra.strip().title()
-                extras_list.append({
-                    "item": extra_item,
-                    "price": calculate_price('extra', extra_item)
-                })
-            session_data["order_details"]["extras"] = extras_list
+                extra_item = {
+                    "name": "extra",
+                    "item": extra.strip().title(),
+                    "price": calculate_price('extra', extra.strip().title())
+                }
+                session_data["order_details"]["items"].append(extra_item)
         session_data["state"] = ConversationState.ASK_DELIVERY_METHOD
         return "Would you like delivery or pickup?"
 
@@ -317,26 +312,21 @@ def process_message(user_input):
         order_summary = "Let me confirm your order:\n"
         total_price = 0
 
-        for pizza in session_data["order_details"]["pizzas"]:
-            price = pizza['price']
+        for item in session_data["order_details"]["items"]:
+            price = item['price']
             total_price += price
-            order_summary += f"- {pizza['quantity']} {pizza['size']} pizza(s)"
-            if pizza['toppings']:
-                order_summary += f" with {pizza['toppings']}"
-            order_summary += f" (${price:.2f})\n"
-            if pizza['extras']:
-                order_summary += f"  Extras: {', '.join(pizza['extras'])}\n"
-
-        for beverage in session_data["order_details"]["beverages"]:
-            price = beverage['price']
-            total_price += price
-            order_summary += f"- {beverage['quantity']} {beverage['item']} (${price:.2f})\n"
-
-        if session_data["order_details"]["extras"]:
-            for extra in session_data["order_details"]["extras"]:
-                price = extra['price']
-                total_price += price
-                order_summary += f"- {extra['item']} (${price:.2f})\n"
+            
+            if item['name'] == 'pizza':
+                order_summary += f"- {item['quantity']} {item['size']} pizza(s)"
+                if item['toppings']:
+                    order_summary += f" with {item['toppings']}"
+                order_summary += f" (${price:.2f})\n"
+                if item['extras']:
+                    order_summary += f"  Extras: {', '.join(item['extras'])}\n"
+            elif item['name'] == 'beverage':
+                order_summary += f"- {item['quantity']} {item['item']} (${price:.2f})\n"
+            elif item['name'] == 'extra':
+                order_summary += f"- {item['item']} (${price:.2f})\n"
 
         order_summary += f"- {session_data['order_details']['delivery_method'].title()}"
         if session_data['order_details']['delivery_method'] == 'delivery':
@@ -389,21 +379,12 @@ def reset_session_data():
         "phone_number": None,
         "customer_name": None,
         "order_details": {
-            "pizzas": [],
-            "beverages": [],
-            "extras": [],
+            "items": [],
             "delivery_method": None,
             "address": None,
             "payment_method": None,
             "order_time": None
-        },
-        "awaiting_pizza_details": False,
-        "awaiting_extras_for_pizza": False,
-        "awaiting_beverages": False,
-        "awaiting_delivery_method": False,
-        "awaiting_address": False,
-        "awaiting_payment": False,
-        "awaiting_confirmation": False
+        }
     }
 
 def calculate_price(item_type, details):
