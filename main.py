@@ -43,6 +43,9 @@ class ConversationState(Enum):
     ASK_DELIVERY_METHOD = auto()
     ASK_ADDRESS = auto()
     ASK_PAYMENT = auto()
+    ASK_CARD_NUMBER = auto()
+    ASK_CARD_EXPIRY = auto()
+    ASK_CARD_CVV = auto()
     CONFIRM_ORDER = auto()
     END = auto()
     ASK_TOPPINGS = auto()
@@ -169,6 +172,11 @@ session_data = {
         "delivery_method": None,
         "address": None,
         "payment_method": None,
+        "card_info": {
+            "number": None,
+            "expiry": None,
+            "cvv": None
+        },
         "order_time": None
     },
     "awaiting_pizza_details": False,
@@ -244,7 +252,7 @@ def display_menu():
 
 def start_conversation():
     global session_data
-    session_data = reset_session_data()
+    session_data = reset_session_data()  # Reset session data to start fresh
     return "Welcome to SliceSync!\n\n" + display_menu() + "\n\nCan I get your phone number, please? (10 digits)"
 
 def process_message(user_input):
@@ -380,25 +388,38 @@ def process_message(user_input):
     if state == ConversationState.ASK_PAYMENT:
         if user_input.lower() in ["card", "credit card"]:
             session_data["order_details"]["payment_method"] = "Card"
+            session_data["state"] = ConversationState.ASK_CARD_NUMBER
+            return "Please enter your 16-digit card number:"
         else:
             session_data["order_details"]["payment_method"] = "Cash"
-        order_summary = "Let me confirm your order:\n"
-        for pizza in session_data["order_details"]["pizzas"]:
-            order_summary += f"- {pizza['quantity']} {pizza['size']} pizza(s)"
-            if pizza['toppings']:
-                order_summary += f" with {pizza['toppings']}\n"
-            if pizza['extras']:
-                order_summary += f"  Extras: {', '.join(pizza['extras'])}\n"
-        for beverage in session_data["order_details"]["beverages"]:
-            order_summary += f"- {beverage['quantity']} {beverage['item']}\n"
-        if session_data["order_details"]["extras"]:
-            order_summary += f"- Extras: {', '.join(session_data['order_details']['extras'])}\n"
-        order_summary += f"- {session_data['order_details']['delivery_method'].title()}"
-        if session_data['order_details']['address']:
-            order_summary += f"\n- Delivery to: {session_data['order_details']['address']}"
-        order_summary += f"\n- Payment: {session_data['order_details']['payment_method']}\n"
-        session_data["state"] = ConversationState.CONFIRM_ORDER
-        return order_summary + "\nWould you like to place this order? (yes/no)"
+            order_summary = create_order_summary(session_data)
+            session_data["state"] = ConversationState.CONFIRM_ORDER
+            return order_summary + "\nWould you like to place this order? (yes/no)"
+
+    if state == ConversationState.ASK_CARD_NUMBER:
+        if validate_card_number(user_input):
+            session_data["order_details"]["card_info"]["number"] = user_input
+            session_data["state"] = ConversationState.ASK_CARD_EXPIRY
+            return "Please enter the card expiry date (MM/YY format):"
+        else:
+            return "Invalid card number. Please enter a valid 16-digit card number:"
+
+    if state == ConversationState.ASK_CARD_EXPIRY:
+        if validate_expiry_date(user_input):
+            session_data["order_details"]["card_info"]["expiry"] = user_input
+            session_data["state"] = ConversationState.ASK_CARD_CVV
+            return "Please enter the 3 or 4 digit CVV number:"
+        else:
+            return "Invalid expiry date. Please enter in MM/YY format:"
+
+    if state == ConversationState.ASK_CARD_CVV:
+        if validate_cvv(user_input):
+            session_data["order_details"]["card_info"]["cvv"] = user_input
+            order_summary = create_order_summary(session_data)
+            session_data["state"] = ConversationState.CONFIRM_ORDER
+            return order_summary + "\nWould you like to place this order? (yes/no)"
+        else:
+            return "Invalid CVV. Please enter a valid 3 or 4 digit CVV number:"
 
     if state == ConversationState.CONFIRM_ORDER:
         if user_input.lower() in ["yes", "y", "sure", "ok"]:
@@ -443,6 +464,11 @@ def reset_session_data():
             "delivery_method": None,
             "address": None,
             "payment_method": None,
+            "card_info": {
+                "number": None,
+                "expiry": None,
+                "cvv": None
+            },
             "order_time": None
         },
         "awaiting_pizza_details": False,
@@ -453,3 +479,56 @@ def reset_session_data():
         "awaiting_payment": False,
         "awaiting_confirmation": False
     }
+
+def validate_card_number(card_number):
+    return bool(re.match(r'^\d{16}$', card_number))
+
+def validate_expiry_date(expiry):
+    # Format: MM/YY
+    if not re.match(r'^\d{2}/\d{2}$', expiry):
+        return False
+    
+    try:
+        month, year = map(int, expiry.split('/'))
+        if not (1 <= month <= 12):
+            return False
+        
+        current_year = datetime.datetime.now().year % 100
+        current_month = datetime.datetime.now().month
+        
+        if year < current_year or (year == current_year and month < current_month):
+            return False
+        
+        return True
+    except:
+        return False
+
+def validate_cvv(cvv):
+    return bool(re.match(r'^\d{3,4}$', cvv))
+
+def create_order_summary(session_data):
+    order_summary = "Let me confirm your order:\n"
+    for pizza in session_data["order_details"]["pizzas"]:
+        order_summary += f"- {pizza['quantity']} {pizza['size']} pizza(s)"
+        if pizza.get('toppings'):
+            order_summary += f" with {pizza['toppings']}\n"
+        if pizza.get('extras'):
+            order_summary += f"  Extras: {', '.join(pizza['extras'])}\n"
+    for beverage in session_data["order_details"]["beverages"]:
+        order_summary += f"- {beverage['quantity']} {beverage['item']}\n"
+    if session_data["order_details"]["extras"]:
+        order_summary += f"- Extras: {', '.join(session_data['order_details']['extras'])}\n"
+    order_summary += f"- {session_data['order_details']['delivery_method'].title()}"
+    if session_data['order_details']['address']:
+        order_summary += f"\n- Delivery to: {session_data['order_details']['address']}"
+    order_summary += f"\n- Payment: {session_data['order_details']['payment_method']}"
+    if session_data['order_details']['payment_method'] == "Card":
+        card_info = session_data['order_details']['card_info']
+        if card_info['number']:
+            masked_card = '*' * 12 + card_info['number'][-4:]
+            order_summary += f" (Card ending in {card_info['number'][-4:]}"
+            if card_info['expiry']:
+                order_summary += f", expires {card_info['expiry']}"
+            order_summary += ")"
+    order_summary += "\n"
+    return order_summary
