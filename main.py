@@ -29,13 +29,21 @@ EXIT_PHRASES = [
     "thank you", "no, thanks", "i'm done", "that's all"
 ]
 
-TIMEOUT_DURATION = 300  
+TIMEOUT_DURATION = 300
 
 class ConversationState(Enum):
     GREETING = auto()
+    ASK_PHONE = auto()
+    CHECK_CUSTOMER = auto()
     ASK_NAME = auto()
     COLLECTING_ORDER = auto()
-    CONFIRMING_ORDER = auto()
+    ASK_EXTRAS_FOR_PIZZA = auto()
+    ASK_BEVERAGES = auto()
+    ASK_ADDITIONAL_EXTRAS = auto()
+    ASK_DELIVERY_METHOD = auto()
+    ASK_ADDRESS = auto()
+    ASK_PAYMENT = auto()
+    CONFIRM_ORDER = auto()
     END = auto()
 
 class ConversationTimer:
@@ -53,9 +61,7 @@ class ConversationTimer:
         self.timer.cancel()
 
 def on_timeout():
-    print("\nAssistant: It seems you're no longer active. Feel free to reach out if you need anything else. Have a great day!")
     logging.info("Conversation timed out due to inactivity.")
-    exit()
 
 def load_data(file_path):
     if os.path.exists(file_path):
@@ -64,7 +70,7 @@ def load_data(file_path):
                 data = json.load(file)
                 return data
             except json.JSONDecodeError:
-                print(f"Warning: {file_path} is empty or contains invalid JSON. Initializing as empty.")
+                logging.warning(f"{file_path} is empty or invalid. Initializing empty data.")
                 return {}
     else:
         return {}
@@ -73,7 +79,7 @@ def save_data(file_path, data):
     with open(file_path, "w") as file:
         json.dump(data, file, indent=4)
 
-def generate_order_id():
+def generate_order_id(orders):
     with ORDER_ID_LOCK:
         if not os.path.exists(ORDER_ID_FILE):
             with open(ORDER_ID_FILE, "w") as f:
@@ -110,149 +116,6 @@ def generate_order_id():
 
     return new_id_str
 
-
-def get_valid_phone_number():
-    while True:
-        phone_number = input("Assistant: Can I get your phone number please? (10 digits)\nYou: ")
-        if re.match(r"^\d{10}$", phone_number):
-            return phone_number
-        else:
-            print("Assistant: Please enter a 10-digit phone number without spaces or dashes.")
-            
-
-def get_order_details(user_input):
-    """
-    Parses user input to extract order details and prompts for missing information.
-    Supports multiple pizzas, beverages, and extra items.
-    """
-    order = {
-        "pizzas": [],
-        "beverages": [],
-        "extras": [],
-        "delivery_method": None,  
-        "address": None
-    }
-
-    normalized_input = user_input.lower()
-
-    pizza_pattern = r"(\b(?:one|two|three|four|five|six|seven|eight|nine|ten|\d+)\b)\s+(small|medium|large)\s+([a-zA-Z\s]+)\s+pizzas?"
-    pizza_matches = re.findall(pizza_pattern, normalized_input)
-
-    number_words = {
-        "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
-        "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10
-    }
-
-    for quantity, size, toppings in pizza_matches:
-        quantity = number_words.get(quantity.lower(), quantity)  
-        order["pizzas"].append({
-            "quantity": int(quantity),
-            "size": size.capitalize(),
-            "toppings": toppings.strip().title(),
-            "extras": [] 
-        })
-
-    if not order["pizzas"]:
-        while True:
-            add_pizza = input("Assistant: What kind of pizza would you like? (e.g., 1 large cheese pizza)\nYou: ")
-            pizza_match = re.match(pizza_pattern, add_pizza.lower())
-            if pizza_match:
-                quantity, size, toppings = pizza_match.groups()
-                quantity = number_words.get(quantity.lower(), quantity)  
-                order["pizzas"].append({
-                    "quantity": int(quantity),
-                    "size": size.capitalize(),
-                    "toppings": toppings.strip().title(),
-                    "extras": []  
-                })
-                break
-            else:
-                print("Assistant: Please provide a valid pizza order format (e.g., 1 large cheese pizza).")
-
-    for pizza in order["pizzas"]:
-        extra_question = f"Assistant: Would you like any extras for your {pizza['size']} pizza(s)? (e.g., extra cheese, garlic sauce)\nYou: "
-        extras_response = input(extra_question).strip()
-        if extras_response.lower() not in ["no", "none", "n/a"]:
-            pizza["extras"] = [extra.strip().title() for extra in extras_response.split(",")]
-
-    beverage_pattern = r"(\b(?:one|two|three|four|five|six|seven|eight|nine|ten|\d+)\b)?\s*([a-zA-Z\s]+)"
-    beverage_matches = re.findall(beverage_pattern, normalized_input)
-
-    for quantity, item in beverage_matches:
-        if "pizza" in item:
-            continue
-        beverage_name = item.strip().title()
-        quantity = number_words.get(quantity.lower(), quantity) if quantity else 1
-        order["beverages"].append({
-            "quantity": int(quantity),
-            "item": beverage_name
-        })
-
-    if not order["beverages"]:
-        add_beverages = input("Assistant: Would you like to add any beverages? (e.g., 2 cokes, 1 sprite)\nYou: ")
-        if add_beverages.lower() not in ["no", "none", "n/a"]:
-            additional_beverages = re.findall(beverage_pattern, add_beverages.lower())
-            for quantity, item in additional_beverages:
-                beverage_name = item.strip().title()
-                quantity = number_words.get(quantity.lower(), quantity) if quantity else 1
-                order["beverages"].append({
-                    "quantity": int(quantity),
-                    "item": beverage_name
-                })
-
-    add_extras = input("Assistant: Would you like to add any extras? (e.g., garlic bread, brownies, dipping sauces)\nYou: ")
-    if add_extras.lower() not in ["no", "none", "n/a"]:
-        extras_list = [extra.strip().title() for extra in add_extras.split(",")]
-        order["extras"] = extras_list
-
-    if "pickup" in normalized_input:
-        order["delivery_method"] = "pickup"
-    elif "delivery" in normalized_input:
-        order["delivery_method"] = "delivery"
-
-    if not order["delivery_method"]:
-        while True:
-            delivery_method = input("Assistant: Would you like delivery or pickup?\nYou: ").strip().lower()
-            if delivery_method in ["delivery", "pickup"]:
-                order["delivery_method"] = delivery_method
-                break
-            else:
-                print("Assistant: Please specify either 'delivery' or 'pickup'.")
-
-    if order["delivery_method"] == "delivery" and not order["address"]:
-        address = input("Assistant: Please provide your delivery address:\nYou: ")
-        order["address"] = address.title()
-    else:
-        order["address"] = None
-
-    return {
-        "order_time": str(datetime.datetime.now()),
-        "pizzas": order["pizzas"],
-        "beverages": order["beverages"],
-        "extras": order["extras"],
-        "delivery_method": order["delivery_method"],
-        "address": order["address"],
-        "payment_method": None
-    }
-
-
-def suggest_upsells(order_details):
-    try:
-        response = openai.ChatCompletion.create(
-            model="gpt-4",
-            messages=[
-                {"role": "system", "content": "Suggest one complementary item based on the order. Keep it short and natural."},
-                {"role": "user", "content": f"Order details: {order_details}"}
-            ],
-            max_tokens=50,
-            temperature=0.5,
-        )
-        upsell = response.choices[0].message.content.strip()
-        return upsell
-    except openai.error.OpenAIError as e:
-        logging.error(f"Error suggesting upsells: {e}")
-        return ""
-
 def is_negative_sentiment(user_input):
     analysis = TextBlob(user_input)
     return analysis.sentiment.polarity < -0.5
@@ -273,165 +136,199 @@ def should_end_conversation(user_input):
     except openai.error.OpenAIError as e:
         logging.error(f"Error in intent detection: {e}")
         return False
-def handle_order(phone_number, customer_name, user_input, conversation_history, orders, customers):
-    order_details = get_order_details(user_input)
 
-    assistant_response = "\nLet me confirm your order:\n"
+def suggest_upsells(order_details):
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": "Suggest one complementary item based on the order. Keep it short and natural."},
+                {"role": "user", "content": f"Order details: {order_details}"}
+            ],
+            max_tokens=50,
+            temperature=0.5,
+        )
+        upsell = response.choices[0].message.content.strip()
+        return upsell
+    except openai.error.OpenAIError as e:
+        logging.error(f"Error suggesting upsells: {e}")
+        return ""
 
-    for pizza in order_details["pizzas"]:
-        assistant_response += f"- {pizza['quantity']} {pizza['size']} pizza(s) with {pizza['toppings']}\n"
-        if pizza["extras"]:
-            assistant_response += f"  Extras: {', '.join(pizza['extras'])}\n"
+orders = load_data(ORDERS_FILE)
+customers = load_data(CUSTOMERS_FILE)
 
-    for beverage in order_details["beverages"]:
-        assistant_response += f"- {beverage['quantity']} {beverage['item']}\n"
+session_data = {
+    "state": ConversationState.GREETING,
+    "phone_number": None,
+    "customer_name": None,
+    "order_details": {
+        "pizzas": [],
+        "beverages": [],
+        "extras": [],
+        "delivery_method": None,
+        "address": None,
+        "payment_method": None,
+        "order_time": None
+    },
+    "awaiting_pizza_details": False,
+    "awaiting_extras_for_pizza": False,
+    "awaiting_beverages": False,
+    "awaiting_delivery_method": False,
+    "awaiting_address": False,
+    "awaiting_payment": False,
+    "awaiting_confirmation": False
+}
 
-    if order_details["extras"]:
-        assistant_response += f"- Extras: {', '.join(order_details['extras'])}\n"
+def process_message(user_input):
+    global session_data, orders, customers
 
-    assistant_response += f"- {order_details['delivery_method'].title()}"
-    if order_details['address']:
-        assistant_response += f"\n- Delivery to: {order_details['address']}"
+    if any(phrase in user_input.lower() for phrase in EXIT_PHRASES):
+        session_data["state"] = ConversationState.END
+        return "Thanks for visiting! Have a great day!"
 
-    print(f"Assistant: {assistant_response}")
-    conversation_history.append({"role": "assistant", "content": assistant_response})
+    if is_negative_sentiment(user_input):
+        return "I'm sorry to hear that. If you need further assistance, feel free to ask!"
 
-    assistant_response = "How would you like to pay? (cash/card)"
-    print(f"Assistant: {assistant_response}")
-    conversation_history.append({"role": "assistant", "content": assistant_response})
+    if should_end_conversation(user_input):
+        session_data["state"] = ConversationState.END
+        return "Thanks for visiting! Have a great day!"
 
-    payment_response = input("You: ").lower()
-    conversation_history.append({"role": "user", "content": payment_response})
+    state = session_data["state"]
 
-    if payment_response in ["card", "credit card"]:
-        order_details["payment_method"] = "Card"
-        assistant_response = "Alright, we'll charge it to your card."
-    else:
-        order_details["payment_method"] = "Cash"
-        assistant_response = "We'll accept cash on delivery/pickup."
-    print(f"Assistant: {assistant_response}")
-    conversation_history.append({"role": "assistant", "content": assistant_response})
-
-    assistant_response = "\nWould you like to place this order? (yes/no)"
-    print(f"Assistant: {assistant_response}")
-    conversation_history.append({"role": "assistant", "content": assistant_response})
-
-    confirmation = input("You: ").lower()
-    conversation_history.append({"role": "user", "content": confirmation})
-
-    if confirmation in ["yes", "y", "sure", "ok"]:
-        order_id = generate_order_id()
-        orders[order_id] = {
-            "customer_name": customer_name,
-            "phone_number": phone_number,
-            "order_details": order_details,
-            "status": "Received"
-        }
-        save_data(ORDERS_FILE, orders)
-        customers[phone_number]["order_history"].append(order_id)
-        save_data(CUSTOMERS_FILE, customers)
-
-        assistant_response = f"Great! Your order is confirmed. Your order number is {order_id}"
-        print(f"\nAssistant: {assistant_response}")
-        conversation_history.append({"role": "assistant", "content": assistant_response})
-
-        if order_details["delivery_method"] == "delivery":
-            assistant_response = "We'll deliver it to you soon!"
+    if state == ConversationState.GREETING:
+        if "order" in user_input.lower() or "pizza" in user_input.lower():
+            session_data["state"] = ConversationState.ASK_PHONE
+            return "Can I get your phone number please? (10 digits)"
         else:
-            assistant_response = "It will be ready for pickup in about 20-25 minutes."
-        print(assistant_response)
-        conversation_history.append({"role": "assistant", "content": assistant_response})
+            return "I can help with ordering pizzas, just let me know what you'd like!"
 
-        logging.info(f"Order placed by {customer_name} ({phone_number}): {order_details}")
-    else:
-        assistant_response = "No problem! Let me know if you'd like to make any changes or try something else."
-        print(f"Assistant: {assistant_response}")
-        conversation_history.append({"role": "assistant", "content": assistant_response})
+    if state == ConversationState.ASK_PHONE:
+        if re.match(r"^\d{10}$", user_input.strip()):
+            session_data["phone_number"] = user_input.strip()
+            if session_data["phone_number"] in customers:
+                session_data["customer_name"] = customers[session_data["phone_number"]]["name"]
+                session_data["state"] = ConversationState.COLLECTING_ORDER
+                return f"Welcome back, {session_data['customer_name']}! What would you like to order?"
+            else:
+                session_data["state"] = ConversationState.ASK_NAME
+                return "First time ordering with us? What's your name?"
+        else:
+            return "Please enter a valid 10-digit phone number."
 
-def main_conversation():
-    print("Assistant: Welcome to our Pizza Shop! How can I help you today?")
+    if state == ConversationState.ASK_NAME:
+        session_data["customer_name"] = user_input.strip()
+        customers[session_data["phone_number"]] = {"name": session_data["customer_name"], "order_history": []}
+        save_data(CUSTOMERS_FILE, customers)
+        session_data["state"] = ConversationState.COLLECTING_ORDER
+        return f"Nice to meet you, {session_data['customer_name']}! What would you like to order?"
 
-    global orders, customers
-    orders = load_data(ORDERS_FILE)
-    customers = load_data(CUSTOMERS_FILE)
+    if state == ConversationState.COLLECTING_ORDER:
+        pizza_pattern = r"(\d+)\s+(small|medium|large)\s+([a-zA-Z\s]+)\s+pizza"
+        match = re.search(pizza_pattern, user_input.lower())
+        if match:
+            quantity = int(match.group(1))
+            size = match.group(2).capitalize()
+            toppings = match.group(3).strip().title()
+            session_data["order_details"]["pizzas"].append({
+                "quantity": quantity,
+                "size": size,
+                "toppings": toppings,
+                "extras": []
+            })
+            session_data["state"] = ConversationState.ASK_EXTRAS_FOR_PIZZA
+            return f"Would you like any extras for your {size} {toppings} pizza(s)? (e.g., extra cheese, garlic sauce) If no, reply 'no'."
+        else:
+            return "Please specify your pizza order in the format: '1 large cheese pizza'"
 
-    conversation_history = [{"role": "assistant", "content": "Welcome to our Pizza Shop! How can I help you today?"}]
+    if state == ConversationState.ASK_EXTRAS_FOR_PIZZA:
+        if user_input.lower() not in ["no", "none", "n/a"]:
+            extras = [extra.strip().title() for extra in user_input.split(",")]
+            session_data["order_details"]["pizzas"][-1]["extras"] = extras
+        session_data["state"] = ConversationState.ASK_BEVERAGES
+        return "Would you like to add any beverages? (e.g., 2 coke, 1 sprite). If no, reply 'no'."
 
-    conversation_timer = ConversationTimer(TIMEOUT_DURATION, on_timeout)
-    conversation_timer.reset()
+    if state == ConversationState.ASK_BEVERAGES:
+        if user_input.lower() not in ["no", "none", "n/a"]:
+            beverage_pattern = r"(\d+)\s+([a-zA-Z\s]+)"
+            matches = re.findall(beverage_pattern, user_input.lower())
+            for q, item in matches:
+                session_data["order_details"]["beverages"].append({
+                    "quantity": int(q),
+                    "item": item.strip().title()
+                })
+        session_data["state"] = ConversationState.ASK_ADDITIONAL_EXTRAS
+        return "Would you like to add any extras? (e.g., garlic bread, brownies). If no, reply 'no'."
 
-    current_state = ConversationState.GREETING
+    if state == ConversationState.ASK_ADDITIONAL_EXTRAS:
+        if user_input.lower() not in ["no", "none", "n/a"]:
+            extras_list = [extra.strip().title() for extra in user_input.split(",")]
+            session_data["order_details"]["extras"] = extras_list
+        session_data["state"] = ConversationState.ASK_DELIVERY_METHOD
+        return "Would you like delivery or pickup?"
 
-    while True:
-        try:
-            user_input = input("You: ")
-            conversation_timer.reset()  
-            conversation_history.append({"role": "user", "content": user_input})
+    if state == ConversationState.ASK_DELIVERY_METHOD:
+        if user_input.lower() in ["delivery", "pickup"]:
+            session_data["order_details"]["delivery_method"] = user_input.lower()
+            if user_input.lower() == "delivery":
+                session_data["state"] = ConversationState.ASK_ADDRESS
+                return "Please provide your delivery address:"
+            else:
+                session_data["state"] = ConversationState.ASK_PAYMENT
+                return "How would you like to pay? (cash/card)"
+        else:
+            return "Please specify either 'delivery' or 'pickup'."
 
-            if any(phrase in user_input.lower() for phrase in EXIT_PHRASES):
-                assistant_response = "Thanks for visiting! Have a great day!"
-                print(f"Assistant: {assistant_response}")
-                conversation_history.append({"role": "assistant", "content": assistant_response})
-                break
+    if state == ConversationState.ASK_ADDRESS:
+        session_data["order_details"]["address"] = user_input.title()
+        session_data["state"] = ConversationState.ASK_PAYMENT
+        return "How would you like to pay? (cash/card)"
 
-            if is_negative_sentiment(user_input):
-                assistant_response = "I'm sorry to hear that. If you need further assistance, feel free to ask!"
-                print(f"Assistant: {assistant_response}")
-                conversation_history.append({"role": "assistant", "content": assistant_response})
-                continue
+    if state == ConversationState.ASK_PAYMENT:
+        if user_input.lower() in ["card", "credit card"]:
+            session_data["order_details"]["payment_method"] = "Card"
+        else:
+            session_data["order_details"]["payment_method"] = "Cash"
+        order_summary = "Let me confirm your order:\n"
+        for pizza in session_data["order_details"]["pizzas"]:
+            order_summary += f"- {pizza['quantity']} {pizza['size']} pizza(s) with {pizza['toppings']}\n"
+            if pizza['extras']:
+                order_summary += f"  Extras: {', '.join(pizza['extras'])}\n"
+        for beverage in session_data["order_details"]["beverages"]:
+            order_summary += f"- {beverage['quantity']} {beverage['item']}\n"
+        if session_data["order_details"]["extras"]:
+            order_summary += f"- Extras: {', '.join(session_data['order_details']['extras'])}\n"
+        order_summary += f"- {session_data['order_details']['delivery_method'].title()}"
+        if session_data['order_details']['address']:
+            order_summary += f"\n- Delivery to: {session_data['order_details']['address']}"
+        order_summary += f"\n- Payment: {session_data['order_details']['payment_method']}\n"
+        session_data["state"] = ConversationState.CONFIRM_ORDER
+        return order_summary + "\nWould you like to place this order? (yes/no)"
 
-            if should_end_conversation(user_input):
-                assistant_response = "Thanks for visiting! Have a great day!"
-                print(f"Assistant: {assistant_response}")
-                conversation_history.append({"role": "assistant", "content": assistant_response})
-                break
+    if state == ConversationState.CONFIRM_ORDER:
+        if user_input.lower() in ["yes", "y", "sure", "ok"]:
+            session_data["order_details"]["order_time"] = str(datetime.datetime.now())
+            order_id = generate_order_id(orders)
+            orders[order_id] = {
+                "customer_name": session_data["customer_name"],
+                "phone_number": session_data["phone_number"],
+                "order_details": session_data["order_details"],
+                "status": "Received"
+            }
+            save_data(ORDERS_FILE, orders)
+            customers[session_data["phone_number"]]["order_history"].append(order_id)
+            save_data(CUSTOMERS_FILE, customers)
+            msg = f"Great! Your order is confirmed. Your order number is {order_id}. "
+            if session_data["order_details"]["delivery_method"] == "delivery":
+                msg += "We'll deliver it to you soon!"
+            else:
+                msg += "It will be ready for pickup in about 20-25 minutes."
+            session_data["state"] = ConversationState.END
+            return msg
+        else:
+            session_data["state"] = ConversationState.COLLECTING_ORDER
+            return "No problem! Let me know if you'd like to make any changes or try something else."
 
-            if current_state == ConversationState.GREETING:
-                if "order" in user_input.lower() or "pizza" in user_input.lower():
-                    phone_number = get_valid_phone_number()
+    if state == ConversationState.END:
+        return "Thanks for visiting! Have a great day!"
 
-                    if phone_number in customers:
-                        name = customers[phone_number]["name"]
-                        assistant_response = f"Welcome back, {name}!"
-                        print(f"Assistant: {assistant_response}")
-                        conversation_history.append({"role": "assistant", "content": assistant_response})
-                    else:
-                        assistant_response = "First time ordering with us? What's your name?"
-                        print(f"Assistant: {assistant_response}")
-                        conversation_history.append({"role": "assistant", "content": assistant_response})
-
-                        name = input("You: ")
-                        customers[phone_number] = {"name": name, "order_history": []}
-                        save_data(CUSTOMERS_FILE, customers)
-
-                        assistant_response = f"Nice to meet you, {name}!"
-                        print(f"Assistant: {assistant_response}")
-                        conversation_history.append({"role": "assistant", "content": assistant_response})
-
-                    handle_order(phone_number, name, user_input, conversation_history, orders, customers)
-                    current_state = ConversationState.CONFIRMING_ORDER
-                else:
-                    assistant_response = "I can help with ordering pizzas, just let me know what you'd like!"
-                    print(f"Assistant: {assistant_response}")
-                    conversation_history.append({"role": "assistant", "content": assistant_response})
-
-            elif current_state == ConversationState.CONFIRMING_ORDER:
-                assistant_response = "Anything else I can help you with?"
-                print(f"Assistant: {assistant_response}")
-                conversation_history.append({"role": "assistant", "content": assistant_response})
-
-        except KeyboardInterrupt:
-            assistant_response = "Conversation ended by user. Have a great day!"
-            print(f"\nAssistant: {assistant_response}")
-            conversation_history.append({"role": "assistant", "content": assistant_response})
-            break
-        except Exception as e:
-            logging.error(f"Unexpected error: {e}")
-            assistant_response = "Something went wrong. Please try again."
-            print(f"Assistant: {assistant_response}")
-            conversation_history.append({"role": "assistant", "content": assistant_response})
-
-    conversation_timer.cancel()
-
-if __name__ == "__main__":
-    main_conversation()
+    return "I'm not sure how to help with that. Please clarify."
