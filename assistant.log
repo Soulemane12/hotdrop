@@ -1,0 +1,8 @@
+2024-12-13 18:48:56,972:INFO:User inquiry: hello can i get a large pizza | Assistant reply: Of course! What toppings would you like on your large pizza?
+2024-12-13 18:49:19,740:INFO:User inquiry: cheese | Assistant reply: Sure, are you looking to order a cheese pizza? If so, what size would you like? We have small, medium, large, and extra large available.
+2024-12-13 18:49:28,305:INFO:User inquiry: large | Assistant reply: Sure, you would like to order a large pizza. What toppings would you like on it?
+2024-12-13 18:49:35,048:INFO:User inquiry: cheese | Assistant reply: Certainly! We have several types of cheese pizzas. Would you like a classic Margherita, a four cheese blend, or do you have a specific type of cheese in mind?
+2024-12-13 18:58:30,061:INFO:Order placed by soulemane (3475445527): Order Details:
+- Item: Large Pizza
+- Quantity: 1
+2024-12-13 19:03:57,981:INFO:Order placed by soulemane (3475445527): {'order_time': '2024-12-13 19:03:47.805754', 'pizza': {'size': 'Large', 'toppings': 'cheese'}, 'delivery_method': 'pickup', 'address': None, 'extras': 'How about adding a cold soda to go with your pizza?'}
