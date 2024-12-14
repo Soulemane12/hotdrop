@@ -180,17 +180,79 @@ session_data = {
     "awaiting_confirmation": False
 }
 
+MENU = {
+    "pizzas": {
+        "Margherita": {
+            "small": 10.99,
+            "medium": 12.99,
+            "large": 14.99,
+            "description": "Classic tomato sauce, mozzarella, fresh basil"
+        },
+        "Pepperoni": {
+            "small": 11.99,
+            "medium": 13.99,
+            "large": 15.99,
+            "description": "Tomato sauce, mozzarella, pepperoni"
+        },
+        "Hawaiian": {
+            "small": 12.99,
+            "medium": 14.99,
+            "large": 16.99,
+            "description": "Tomato sauce, mozzarella, ham, pineapple"
+        },
+        "Supreme": {
+            "small": 13.99,
+            "medium": 15.99,
+            "large": 17.99,
+            "description": "Tomato sauce, mozzarella, pepperoni, sausage, mushrooms, peppers, onions"
+        }
+    },
+    "sides": {
+        "Garlic Bread": 4.99,
+        "Chicken Wings (8pcs)": 8.99,
+        "Cheese Sticks": 5.99,
+        "Caesar Salad": 6.99
+    },
+    "drinks": {
+        "Coca-Cola": 2.99,
+        "Sprite": 2.99,
+        "Fanta": 2.99,
+        "Water": 1.99
+    }
+}
+
+def display_menu():
+    menu_text = "📋 SLICESYNC MENU 📋\n\n"
+    
+    menu_text += "🍕 PIZZAS:\n"
+    for pizza, details in MENU["pizzas"].items():
+        menu_text += f"\n{pizza}:\n"
+        menu_text += f"  {details['description']}\n"
+        menu_text += f"  Small: ${details['small']:.2f}\n"
+        menu_text += f"  Medium: ${details['medium']:.2f}\n"
+        menu_text += f"  Large: ${details['large']:.2f}\n"
+    
+    menu_text += "\n🍗 SIDES:\n"
+    for side, price in MENU["sides"].items():
+        menu_text += f"{side}: ${price:.2f}\n"
+    
+    menu_text += "\n🥤 DRINKS:\n"
+    for drink, price in MENU["drinks"].items():
+        menu_text += f"{drink}: ${price:.2f}\n"
+    
+    return menu_text
+
 def start_conversation():
     global session_data
-    session_data = reset_session_data()  # Reset session data to start fresh
-    return "Welcome to SliceSync! Can I get your phone number, please? (10 digits)"
+    session_data = reset_session_data()
+    return "Welcome to SliceSync!\n\n" + display_menu() + "\n\nCan I get your phone number, please? (10 digits)"
 
 def process_message(user_input):
     global session_data, orders, customers
 
     if session_data["state"] == ConversationState.GREETING:
         session_data["state"] = ConversationState.ASK_PHONE
-        return "Welcome to SliceSync! Can I get your phone number, please? (10 digits)"
+        return "Welcome to SliceSync!\n\n" + display_menu() + "\n\nCan I get your phone number, please? (10 digits)"
 
     if any(phrase in user_input.lower() for phrase in EXIT_PHRASES):
         session_data["state"] = ConversationState.END
@@ -226,28 +288,35 @@ def process_message(user_input):
         return f"Nice to meet you, {session_data['customer_name']}! What would you like to order?"
 
     if state == ConversationState.COLLECTING_ORDER:
+        if user_input.lower() in ["menu", "show menu"]:
+            return display_menu()
+        
         pizza_pattern = r"(\d+)?\s*(small|medium|large)?\s*([a-zA-Z\s]*)?\s*pizza"
         match = re.search(pizza_pattern, user_input.lower())
         if match:
             quantity = int(match.group(1)) if match.group(1) else 1
             size = match.group(2).capitalize() if match.group(2) else "Medium"
-            toppings = match.group(3).strip().title() if match.group(3) else None
+            pizza_name = match.group(3).strip().title() if match.group(3) else None
+
+            if not pizza_name:
+                return "Please specify which pizza you'd like from our menu. Type 'menu' to see options."
+            
+            # Check if pizza exists in menu
+            if pizza_name not in MENU["pizzas"]:
+                return f"Sorry, we don't have {pizza_name} pizza. Type 'menu' to see our available options."
 
             session_data["order_details"]["pizzas"].append({
                 "quantity": quantity,
                 "size": size,
-                "toppings": toppings,
+                "name": pizza_name,
+                "price": MENU["pizzas"][pizza_name][size.lower()],
                 "extras": []
             })
-
-            if not toppings:
-                session_data["state"] = ConversationState.ASK_TOPPINGS
-                return f"What toppings would you like on your {size} pizza(s)?"
-            else:
-                session_data["state"] = ConversationState.ASK_EXTRAS_FOR_PIZZA
-                return f"Would you like any extras for your {size} {toppings} pizza(s)? (e.g., extra cheese, garlic sauce). If no, reply 'no'."
+            
+            session_data["state"] = ConversationState.ASK_EXTRAS_FOR_PIZZA
+            return f"Would you like any extras for your {size} {pizza_name} pizza(s)? Type 'menu' to see available sides."
         else:
-            return "Please specify your pizza order. Example: '1 large cheese pizza' or 'medium pizza'."
+            return "Please specify your pizza order (e.g., '1 large Margherita pizza') or type 'menu' to see options."
 
     if state == ConversationState.ASK_TOPPINGS:
         if user_input.lower() not in ["no", "none", "n/a"]:
@@ -266,13 +335,20 @@ def process_message(user_input):
         return "Would you like to add any beverages? (e.g., 2 coke, 1 sprite). If no, reply 'no'."
 
     if state == ConversationState.ASK_BEVERAGES:
+        if user_input.lower() == "menu":
+            return "\n".join([f"- {drink}" for drink in MENU["drinks"].keys()])
+        
         if user_input.lower() not in ["no", "none", "n/a"]:
             beverage_pattern = r"(\d+)\s+([a-zA-Z\s]+)"
             matches = re.findall(beverage_pattern, user_input.lower())
             for q, item in matches:
+                item = item.strip().title()
+                if item not in MENU["drinks"]:
+                    return f"Sorry, we don't have {item}. Please choose from our menu."
                 session_data["order_details"]["beverages"].append({
                     "quantity": int(q),
-                    "item": item.strip().title()
+                    "item": item,
+                    "price": MENU["drinks"][item]
                 })
         session_data["state"] = ConversationState.ASK_ADDITIONAL_EXTRAS
         return "Would you like to add any extras? (e.g., garlic bread, brownies). If no, reply 'no'."
