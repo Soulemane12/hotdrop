@@ -43,9 +43,6 @@ class ConversationState(Enum):
     ASK_DELIVERY_METHOD = auto()
     ASK_ADDRESS = auto()
     ASK_PAYMENT = auto()
-    ASK_CARD_NUMBER = auto()
-    ASK_CARD_EXPIRY = auto()
-    ASK_CARD_CVV = auto()
     CONFIRM_ORDER = auto()
     END = auto()
     ASK_TOPPINGS = auto()
@@ -172,11 +169,6 @@ session_data = {
         "delivery_method": None,
         "address": None,
         "payment_method": None,
-        "card_info": {
-            "number": None,
-            "expiry": None,
-            "cvv": None
-        },
         "order_time": None
     },
     "awaiting_pizza_details": False,
@@ -188,79 +180,17 @@ session_data = {
     "awaiting_confirmation": False
 }
 
-MENU = {
-    "pizzas": {
-        "Margherita": {
-            "small": 10.99,
-            "medium": 12.99,
-            "large": 14.99,
-            "description": "Classic tomato sauce, mozzarella, fresh basil"
-        },
-        "Pepperoni": {
-            "small": 11.99,
-            "medium": 13.99,
-            "large": 15.99,
-            "description": "Tomato sauce, mozzarella, pepperoni"
-        },
-        "Hawaiian": {
-            "small": 12.99,
-            "medium": 14.99,
-            "large": 16.99,
-            "description": "Tomato sauce, mozzarella, ham, pineapple"
-        },
-        "Supreme": {
-            "small": 13.99,
-            "medium": 15.99,
-            "large": 17.99,
-            "description": "Tomato sauce, mozzarella, pepperoni, sausage, mushrooms, peppers, onions"
-        }
-    },
-    "sides": {
-        "Garlic Bread": 4.99,
-        "Chicken Wings (8pcs)": 8.99,
-        "Cheese Sticks": 5.99,
-        "Caesar Salad": 6.99
-    },
-    "drinks": {
-        "Coca-Cola": 2.99,
-        "Sprite": 2.99,
-        "Fanta": 2.99,
-        "Water": 1.99
-    }
-}
-
-def display_menu():
-    menu_text = "📋 SLICESYNC MENU 📋\n\n"
-    
-    menu_text += "🍕 PIZZAS:\n"
-    for pizza, details in MENU["pizzas"].items():
-        menu_text += f"\n{pizza}:\n"
-        menu_text += f"  {details['description']}\n"
-        menu_text += f"  Small: ${details['small']:.2f}\n"
-        menu_text += f"  Medium: ${details['medium']:.2f}\n"
-        menu_text += f"  Large: ${details['large']:.2f}\n"
-    
-    menu_text += "\n🍗 SIDES:\n"
-    for side, price in MENU["sides"].items():
-        menu_text += f"{side}: ${price:.2f}\n"
-    
-    menu_text += "\n🥤 DRINKS:\n"
-    for drink, price in MENU["drinks"].items():
-        menu_text += f"{drink}: ${price:.2f}\n"
-    
-    return menu_text
-
 def start_conversation():
     global session_data
     session_data = reset_session_data()  # Reset session data to start fresh
-    return "Welcome to SliceSync!\n\n" + display_menu() + "\n\nCan I get your phone number, please? (10 digits)"
+    return "Welcome to SliceSync! Can I get your phone number, please? (10 digits)"
 
 def process_message(user_input):
     global session_data, orders, customers
 
     if session_data["state"] == ConversationState.GREETING:
         session_data["state"] = ConversationState.ASK_PHONE
-        return "Welcome to SliceSync!\n\n" + display_menu() + "\n\nCan I get your phone number, please? (10 digits)"
+        return "Welcome to SliceSync! Can I get your phone number, please? (10 digits)"
 
     if any(phrase in user_input.lower() for phrase in EXIT_PHRASES):
         session_data["state"] = ConversationState.END
@@ -296,35 +226,29 @@ def process_message(user_input):
         return f"Nice to meet you, {session_data['customer_name']}! What would you like to order?"
 
     if state == ConversationState.COLLECTING_ORDER:
-        if user_input.lower() in ["menu", "show menu"]:
-            return display_menu()
-        
         pizza_pattern = r"(\d+)?\s*(small|medium|large)?\s*([a-zA-Z\s]*)?\s*pizza"
         match = re.search(pizza_pattern, user_input.lower())
         if match:
             quantity = int(match.group(1)) if match.group(1) else 1
             size = match.group(2).capitalize() if match.group(2) else "Medium"
-            pizza_name = match.group(3).strip().title() if match.group(3) else None
-
-            if not pizza_name:
-                return "Please specify which pizza you'd like from our menu. Type 'menu' to see options."
-            
-            # Check if pizza exists in menu
-            if pizza_name not in MENU["pizzas"]:
-                return f"Sorry, we don't have {pizza_name} pizza. Type 'menu' to see our available options."
+            toppings = match.group(3).strip().title() if match.group(3) else None
 
             session_data["order_details"]["pizzas"].append({
                 "quantity": quantity,
                 "size": size,
-                "name": pizza_name,
-                "price": MENU["pizzas"][pizza_name][size.lower()],
-                "extras": []
+                "toppings": toppings,
+                "extras": [],
+                "price": calculate_price('pizza', {"quantity": quantity, "size": size, "toppings": toppings})
             })
-            
-            session_data["state"] = ConversationState.ASK_EXTRAS_FOR_PIZZA
-            return f"Would you like any extras for your {size} {pizza_name} pizza(s)? Type 'menu' to see available sides."
+
+            if not toppings:
+                session_data["state"] = ConversationState.ASK_TOPPINGS
+                return f"What toppings would you like on your {size} pizza(s)?"
+            else:
+                session_data["state"] = ConversationState.ASK_EXTRAS_FOR_PIZZA
+                return f"Would you like any extras for your {size} {toppings} pizza(s)? (e.g., extra cheese, garlic sauce). If no, reply 'no'."
         else:
-            return "Please specify your pizza order (e.g., '1 large Margherita pizza') or type 'menu' to see options."
+            return "Please specify your pizza order. Example: '1 large cheese pizza' or 'medium pizza'."
 
     if state == ConversationState.ASK_TOPPINGS:
         if user_input.lower() not in ["no", "none", "n/a"]:
@@ -343,27 +267,27 @@ def process_message(user_input):
         return "Would you like to add any beverages? (e.g., 2 coke, 1 sprite). If no, reply 'no'."
 
     if state == ConversationState.ASK_BEVERAGES:
-        if user_input.lower() == "menu":
-            return "\n".join([f"- {drink}" for drink in MENU["drinks"].keys()])
-        
         if user_input.lower() not in ["no", "none", "n/a"]:
             beverage_pattern = r"(\d+)\s+([a-zA-Z\s]+)"
             matches = re.findall(beverage_pattern, user_input.lower())
             for q, item in matches:
-                item = item.strip().title()
-                if item not in MENU["drinks"]:
-                    return f"Sorry, we don't have {item}. Please choose from our menu."
                 session_data["order_details"]["beverages"].append({
                     "quantity": int(q),
-                    "item": item,
-                    "price": MENU["drinks"][item]
+                    "item": item.strip().title(),
+                    "price": calculate_price('beverage', {"quantity": int(q), "item": item.strip().title()})
                 })
         session_data["state"] = ConversationState.ASK_ADDITIONAL_EXTRAS
         return "Would you like to add any extras? (e.g., garlic bread, brownies). If no, reply 'no'."
 
     if state == ConversationState.ASK_ADDITIONAL_EXTRAS:
         if user_input.lower() not in ["no", "none", "n/a"]:
-            extras_list = [extra.strip().title() for extra in user_input.split(",")]
+            extras_list = []
+            for extra in user_input.split(","):
+                extra_item = extra.strip().title()
+                extras_list.append({
+                    "item": extra_item,
+                    "price": calculate_price('extra', extra_item)
+                })
             session_data["order_details"]["extras"] = extras_list
         session_data["state"] = ConversationState.ASK_DELIVERY_METHOD
         return "Would you like delivery or pickup?"
@@ -388,38 +312,45 @@ def process_message(user_input):
     if state == ConversationState.ASK_PAYMENT:
         if user_input.lower() in ["card", "credit card"]:
             session_data["order_details"]["payment_method"] = "Card"
-            session_data["state"] = ConversationState.ASK_CARD_NUMBER
-            return "Please enter your 16-digit card number:"
         else:
             session_data["order_details"]["payment_method"] = "Cash"
-            order_summary = create_order_summary(session_data)
-            session_data["state"] = ConversationState.CONFIRM_ORDER
-            return order_summary + "\nWould you like to place this order? (yes/no)"
+        order_summary = "Let me confirm your order:\n"
+        total_price = 0
 
-    if state == ConversationState.ASK_CARD_NUMBER:
-        if validate_card_number(user_input):
-            session_data["order_details"]["card_info"]["number"] = user_input
-            session_data["state"] = ConversationState.ASK_CARD_EXPIRY
-            return "Please enter the card expiry date (MM/YY format):"
-        else:
-            return "Invalid card number. Please enter a valid 16-digit card number:"
+        for pizza in session_data["order_details"]["pizzas"]:
+            price = pizza['price']
+            total_price += price
+            order_summary += f"- {pizza['quantity']} {pizza['size']} pizza(s)"
+            if pizza['toppings']:
+                order_summary += f" with {pizza['toppings']}"
+            order_summary += f" (${price:.2f})\n"
+            if pizza['extras']:
+                order_summary += f"  Extras: {', '.join(pizza['extras'])}\n"
 
-    if state == ConversationState.ASK_CARD_EXPIRY:
-        if validate_expiry_date(user_input):
-            session_data["order_details"]["card_info"]["expiry"] = user_input
-            session_data["state"] = ConversationState.ASK_CARD_CVV
-            return "Please enter the 3 or 4 digit CVV number:"
-        else:
-            return "Invalid expiry date. Please enter in MM/YY format:"
+        for beverage in session_data["order_details"]["beverages"]:
+            price = beverage['price']
+            total_price += price
+            order_summary += f"- {beverage['quantity']} {beverage['item']} (${price:.2f})\n"
 
-    if state == ConversationState.ASK_CARD_CVV:
-        if validate_cvv(user_input):
-            session_data["order_details"]["card_info"]["cvv"] = user_input
-            order_summary = create_order_summary(session_data)
-            session_data["state"] = ConversationState.CONFIRM_ORDER
-            return order_summary + "\nWould you like to place this order? (yes/no)"
-        else:
-            return "Invalid CVV. Please enter a valid 3 or 4 digit CVV number:"
+        if session_data["order_details"]["extras"]:
+            for extra in session_data["order_details"]["extras"]:
+                price = extra['price']
+                total_price += price
+                order_summary += f"- {extra['item']} (${price:.2f})\n"
+
+        order_summary += f"- {session_data['order_details']['delivery_method'].title()}"
+        if session_data['order_details']['delivery_method'] == 'delivery':
+            delivery_fee = 5.00
+            total_price += delivery_fee
+            order_summary += f" (Delivery Fee: ${delivery_fee:.2f})"
+
+        if session_data['order_details']['address']:
+            order_summary += f"\n- Delivery to: {session_data['order_details']['address']}"
+        order_summary += f"\n- Payment: {session_data['order_details']['payment_method']}"
+        order_summary += f"\n\nTotal: ${total_price:.2f}"
+
+        session_data["state"] = ConversationState.CONFIRM_ORDER
+        return order_summary + "\nWould you like to place this order? (yes/no)"
 
     if state == ConversationState.CONFIRM_ORDER:
         if user_input.lower() in ["yes", "y", "sure", "ok"]:
@@ -464,11 +395,6 @@ def reset_session_data():
             "delivery_method": None,
             "address": None,
             "payment_method": None,
-            "card_info": {
-                "number": None,
-                "expiry": None,
-                "cvv": None
-            },
             "order_time": None
         },
         "awaiting_pizza_details": False,
@@ -480,55 +406,38 @@ def reset_session_data():
         "awaiting_confirmation": False
     }
 
-def validate_card_number(card_number):
-    return bool(re.match(r'^\d{16}$', card_number))
-
-def validate_expiry_date(expiry):
-    # Format: MM/YY
-    if not re.match(r'^\d{2}/\d{2}$', expiry):
-        return False
+def calculate_price(item_type, details):
+    prices = {
+        'pizza': {
+            'Small': 8.99,
+            'Medium': 12.99,
+            'Large': 15.99,
+            'extra_topping': 1.50,
+        },
+        'beverage': {
+            'Coke': 2.49,
+            'Sprite': 2.49,
+            'Water': 1.99,
+            'Beer': 4.99,
+        },
+        'extra': {
+            'Garlic Bread': 4.99,
+            'Wings': 7.99,
+            'Brownies': 5.99,
+            'Extra Cheese': 2.00,
+            'Garlic Sauce': 1.00,
+        }
+    }
     
-    try:
-        month, year = map(int, expiry.split('/'))
-        if not (1 <= month <= 12):
-            return False
-        
-        current_year = datetime.datetime.now().year % 100
-        current_month = datetime.datetime.now().month
-        
-        if year < current_year or (year == current_year and month < current_month):
-            return False
-        
-        return True
-    except:
-        return False
-
-def validate_cvv(cvv):
-    return bool(re.match(r'^\d{3,4}$', cvv))
-
-def create_order_summary(session_data):
-    order_summary = "Let me confirm your order:\n"
-    for pizza in session_data["order_details"]["pizzas"]:
-        order_summary += f"- {pizza['quantity']} {pizza['size']} pizza(s)"
-        if pizza.get('toppings'):
-            order_summary += f" with {pizza['toppings']}\n"
-        if pizza.get('extras'):
-            order_summary += f"  Extras: {', '.join(pizza['extras'])}\n"
-    for beverage in session_data["order_details"]["beverages"]:
-        order_summary += f"- {beverage['quantity']} {beverage['item']}\n"
-    if session_data["order_details"]["extras"]:
-        order_summary += f"- Extras: {', '.join(session_data['order_details']['extras'])}\n"
-    order_summary += f"- {session_data['order_details']['delivery_method'].title()}"
-    if session_data['order_details']['address']:
-        order_summary += f"\n- Delivery to: {session_data['order_details']['address']}"
-    order_summary += f"\n- Payment: {session_data['order_details']['payment_method']}"
-    if session_data['order_details']['payment_method'] == "Card":
-        card_info = session_data['order_details']['card_info']
-        if card_info['number']:
-            masked_card = '*' * 12 + card_info['number'][-4:]
-            order_summary += f" (Card ending in {card_info['number'][-4:]}"
-            if card_info['expiry']:
-                order_summary += f", expires {card_info['expiry']}"
-            order_summary += ")"
-    order_summary += "\n"
-    return order_summary
+    if item_type == 'pizza':
+        base_price = prices['pizza'].get(details['size'], 12.99)
+        toppings_count = len(details.get('toppings', '').split(',')) - 1  # -1 because cheese is included
+        if toppings_count > 0:
+            base_price += toppings_count * prices['pizza']['extra_topping']
+        return base_price * details['quantity']
+    
+    elif item_type == 'beverage':
+        return prices['beverage'].get(details['item'], 2.49) * details['quantity']
+    
+    elif item_type == 'extra':
+        return prices['extra'].get(details, 3.99)
