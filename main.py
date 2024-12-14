@@ -45,6 +45,7 @@ class ConversationState(Enum):
     ASK_PAYMENT = auto()
     CONFIRM_ORDER = auto()
     END = auto()
+    ASK_TOPPINGS = auto()
 
 class ConversationTimer:
     def __init__(self, timeout, callback):
