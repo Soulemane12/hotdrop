@@ -178,6 +178,7 @@ session_data = {
     "awaiting_payment": False,
     "awaiting_confirmation": False
 }
+
 def process_message(user_input):
     global session_data, orders, customers
 
@@ -195,11 +196,8 @@ def process_message(user_input):
     state = session_data["state"]
 
     if state == ConversationState.GREETING:
-        if "order" in user_input.lower() or "pizza" in user_input.lower():
-            session_data["state"] = ConversationState.ASK_PHONE
-            return "Can I get your phone number please? (10 digits)"
-        else:
-            return "I can help with ordering pizzas, just let me know what you'd like!"
+        session_data["state"] = ConversationState.ASK_PHONE
+        return "Welcome! Can I get your phone number, please? (10 digits)"
 
     if state == ConversationState.ASK_PHONE:
         if re.match(r"^\d{10}$", user_input.strip()):
@@ -222,22 +220,30 @@ def process_message(user_input):
         return f"Nice to meet you, {session_data['customer_name']}! What would you like to order?"
 
     if state == ConversationState.COLLECTING_ORDER:
-        pizza_pattern = r"(\d+)\s+(small|medium|large)\s+([a-zA-Z\s]+)\s+pizza"
+        pizza_pattern = r"(\d+)\s+(small|medium|large)\s+pizza"
         match = re.search(pizza_pattern, user_input.lower())
         if match:
             quantity = int(match.group(1))
             size = match.group(2).capitalize()
-            toppings = match.group(3).strip().title()
             session_data["order_details"]["pizzas"].append({
                 "quantity": quantity,
                 "size": size,
-                "toppings": toppings,
+                "toppings": None,
                 "extras": []
             })
-            session_data["state"] = ConversationState.ASK_EXTRAS_FOR_PIZZA
-            return f"Would you like any extras for your {size} {toppings} pizza(s)? (e.g., extra cheese, garlic sauce) If no, reply 'no'."
+            session_data["state"] = ConversationState.ASK_TOPPINGS
+            return f"What toppings would you like on your {size} pizza(s)?"
         else:
-            return "Please specify your pizza order in the format: '1 large cheese pizza'"
+            return "Please specify your pizza order in the format: '1 large pizza'."
+
+    if state == ConversationState.ASK_TOPPINGS:
+        if user_input.lower() not in ["no", "none", "n/a"]:
+            toppings = [topping.strip().title() for topping in user_input.split(",")]
+            session_data["order_details"]["pizzas"][-1]["toppings"] = ", ".join(toppings)
+        else:
+            session_data["order_details"]["pizzas"][-1]["toppings"] = "Cheese"
+        session_data["state"] = ConversationState.ASK_EXTRAS_FOR_PIZZA
+        return "Would you like any extras for your pizza(s)? (e.g., extra cheese, garlic sauce). If no, reply 'no'."
 
     if state == ConversationState.ASK_EXTRAS_FOR_PIZZA:
         if user_input.lower() not in ["no", "none", "n/a"]:
@@ -332,6 +338,7 @@ def process_message(user_input):
         return "Thanks for visiting! Have a great day!"
 
     return "I'm not sure how to help with that. Please clarify."
+
 
 def reset_session_data():
     return {
