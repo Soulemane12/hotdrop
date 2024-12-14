@@ -179,25 +179,28 @@ session_data = {
     "awaiting_confirmation": False
 }
 
+
+
+
 def process_message(user_input):
     global session_data, orders, customers
 
     if any(phrase in user_input.lower() for phrase in EXIT_PHRASES):
         session_data["state"] = ConversationState.END
-        return "Thanks for visiting! Have a great day!"
+        return "Thanks for visiting SliceSync! Have a great day!"
 
     if is_negative_sentiment(user_input):
         return "I'm sorry to hear that. If you need further assistance, feel free to ask!"
 
     if should_end_conversation(user_input):
         session_data["state"] = ConversationState.END
-        return "Thanks for visiting! Have a great day!"
+        return "Thanks for visiting SliceSync! Have a great day!"
 
     state = session_data["state"]
 
     if state == ConversationState.GREETING:
         session_data["state"] = ConversationState.ASK_PHONE
-        return "Welcome! Can I get your phone number, please? (10 digits)"
+        return "Welcome to SliceSync! Can I get your phone number, please? (10 digits)"
 
     if state == ConversationState.ASK_PHONE:
         if re.match(r"^\d{10}$", user_input.strip()):
@@ -220,21 +223,28 @@ def process_message(user_input):
         return f"Nice to meet you, {session_data['customer_name']}! What would you like to order?"
 
     if state == ConversationState.COLLECTING_ORDER:
-        pizza_pattern = r"(\d+)\s+(small|medium|large)\s+pizza"
+        pizza_pattern = r"(\d+)?\s*(small|medium|large)?\s*([a-zA-Z\s]*)?\s*pizza"
         match = re.search(pizza_pattern, user_input.lower())
         if match:
-            quantity = int(match.group(1))
-            size = match.group(2).capitalize()
+            quantity = int(match.group(1)) if match.group(1) else 1
+            size = match.group(2).capitalize() if match.group(2) else "Medium"
+            toppings = match.group(3).strip().title() if match.group(3) else None
+
             session_data["order_details"]["pizzas"].append({
                 "quantity": quantity,
                 "size": size,
-                "toppings": None,
+                "toppings": toppings,
                 "extras": []
             })
-            session_data["state"] = ConversationState.ASK_TOPPINGS
-            return f"What toppings would you like on your {size} pizza(s)?"
+
+            if not toppings:
+                session_data["state"] = ConversationState.ASK_TOPPINGS
+                return f"What toppings would you like on your {size} pizza(s)?"
+            else:
+                session_data["state"] = ConversationState.ASK_EXTRAS_FOR_PIZZA
+                return f"Would you like any extras for your {size} {toppings} pizza(s)? (e.g., extra cheese, garlic sauce). If no, reply 'no'."
         else:
-            return "Please specify your pizza order in the format: '1 large pizza'."
+            return "Please specify your pizza order. Example: '1 large cheese pizza' or 'medium pizza'."
 
     if state == ConversationState.ASK_TOPPINGS:
         if user_input.lower() not in ["no", "none", "n/a"]:
@@ -295,7 +305,9 @@ def process_message(user_input):
             session_data["order_details"]["payment_method"] = "Cash"
         order_summary = "Let me confirm your order:\n"
         for pizza in session_data["order_details"]["pizzas"]:
-            order_summary += f"- {pizza['quantity']} {pizza['size']} pizza(s) with {pizza['toppings']}\n"
+            order_summary += f"- {pizza['quantity']} {pizza['size']} pizza(s)"
+            if pizza['toppings']:
+                order_summary += f" with {pizza['toppings']}\n"
             if pizza['extras']:
                 order_summary += f"  Extras: {', '.join(pizza['extras'])}\n"
         for beverage in session_data["order_details"]["beverages"]:
@@ -335,7 +347,7 @@ def process_message(user_input):
 
     if state == ConversationState.END:
         session_data = reset_session_data()  
-        return "Thanks for visiting! Have a great day!"
+        return "Thanks for visiting SliceSync! Have a great day!"
 
     return "I'm not sure how to help with that. Please clarify."
 
