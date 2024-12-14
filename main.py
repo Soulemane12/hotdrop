@@ -180,11 +180,16 @@ session_data = {
     "awaiting_confirmation": False
 }
 
-
-
+def start_conversation():
+    global session_data
+    session_data = reset_session_data()  # Reset session data to start fresh
+    return "Welcome to SliceSync! Can I get your phone number, please? (10 digits)"
 
 def process_message(user_input):
     global session_data, orders, customers
+
+    if session_data["state"] == ConversationState.GREETING:
+        return start_conversation()
 
     if any(phrase in user_input.lower() for phrase in EXIT_PHRASES):
         session_data["state"] = ConversationState.END
