@@ -1,9 +1,9 @@
 {
-    "9c71a179-e3c3-47bf-a289-b94dded69175": {
+    "0001": {
         "customer_name": "soulemane",
         "phone_number": "3475445527",
         "order_details": {
-            "order_time": "2024-12-13 22:55:42.799335",
+            "order_time": "2024-12-14 12:09:41.657089",
             "pizza": {
                 "quantity": 1,
                 "size": "Large",
@@ -15,59 +15,11 @@
         },
         "status": "Received"
     },
-    "79dd5cd6-a870-437b-8ebe-b1a5de57e1c2": {
-        "customer_name": "soulemane",
-        "phone_number": "3475445527",
+    "0002": {
+        "customer_name": "alimu",
+        "phone_number": "6466336944",
         "order_details": {
-            "order_time": "2024-12-13 22:58:21.487974",
-            "pizza": {
-                "quantity": 1,
-                "size": "Large",
-                "toppings": "Cheese"
-            },
-            "delivery_method": "pickup",
-            "address": null,
-            "payment_method": "Card"
-        },
-        "status": "Received"
-    },
-    "9c3d5adf-2418-4051-9b14-66971bb5f9b1": {
-        "customer_name": "soulemane",
-        "phone_number": "3475445527",
-        "order_details": {
-            "order_time": "2024-12-14 09:37:27.789134",
-            "pizza": {
-                "quantity": 1,
-                "size": "Large",
-                "toppings": "Cheese"
-            },
-            "delivery_method": "pickup",
-            "address": null,
-            "payment_method": "Card"
-        },
-        "status": "Received"
-    },
-    "9ba8b495-a477-4e18-ae8f-7823fe75dd03": {
-        "customer_name": "Zaker",
-        "phone_number": "3477890779",
-        "order_details": {
-            "order_time": "2024-12-14 09:44:25.976244",
-            "pizza": {
-                "quantity": 1,
-                "size": "Large",
-                "toppings": "Cheese"
-            },
-            "delivery_method": "pickup",
-            "address": null,
-            "payment_method": "Card"
-        },
-        "status": "Received"
-    },
-    "7eabc8ab-2387-47d6-8747-bbf189da09dc": {
-        "customer_name": "soulemane",
-        "phone_number": "3475445527",
-        "order_details": {
-            "order_time": "2024-12-14 10:03:14.653786",
+            "order_time": "2024-12-14 12:12:49.803504",
             "pizza": {
                 "quantity": 1,
                 "size": "Large",
@@ -76,6 +28,207 @@
             "delivery_method": "pickup",
             "address": null,
             "payment_method": "Cash"
+        },
+        "status": "Received"
+    },
+    "0003": {
+        "customer_name": "soulemane",
+        "phone_number": "3475445527",
+        "order_details": {
+            "order_time": "2024-12-14 12:14:45.633819",
+            "pizzas": [
+                {
+                    "quantity": 1,
+                    "size": "Small",
+                    "toppings": "Cheese"
+                }
+            ],
+            "beverages": [],
+            "delivery_method": "pickup",
+            "address": null,
+            "payment_method": "Card"
+        },
+        "status": "Received"
+    },
+    "0004": {
+        "customer_name": "soulemane",
+        "phone_number": "3475445527",
+        "order_details": {
+            "order_time": "2024-12-14 12:15:33.477505",
+            "pizzas": [
+                {
+                    "quantity": 1,
+                    "size": "Medium",
+                    "toppings": "Cheese"
+                }
+            ],
+            "beverages": [],
+            "delivery_method": "pickup",
+            "address": null,
+            "payment_method": "Cash"
+        },
+        "status": "Received"
+    },
+    "0005": {
+        "customer_name": "soulemane",
+        "phone_number": "3475445527",
+        "order_details": {
+            "order_time": "2024-12-14 12:23:11.361059",
+            "pizzas": [],
+            "beverages": [
+                {
+                    "quantity": 2,
+                    "item": "Coke"
+                }
+            ],
+            "extras": [
+                "Wings"
+            ],
+            "delivery_method": "pickup",
+            "address": null,
+            "payment_method": "Card"
+        },
+        "status": "Received"
+    },
+    "0006": {
+        "customer_name": "soulemane",
+        "phone_number": "3475445527",
+        "order_details": {
+            "order_time": "2024-12-14 12:27:17.947071",
+            "pizzas": [
+                {
+                    "quantity": 1,
+                    "size": "Large",
+                    "toppings": "Cheese",
+                    "extras": []
+                }
+            ],
+            "beverages": [],
+            "extras": [],
+            "delivery_method": "pickup",
+            "address": null,
+            "payment_method": "Card"
+        },
+        "status": "Received"
+    },
+    "0007": {
+        "customer_name": "soulemane",
+        "phone_number": "3475445527",
+        "order_details": {
+            "order_time": "2024-12-14 12:29:11.774786",
+            "pizzas": [
+                {
+                    "quantity": 3,
+                    "size": "Large",
+                    "toppings": "Cheese",
+                    "extras": []
+                }
+            ],
+            "beverages": [],
+            "extras": [],
+            "delivery_method": "pickup",
+            "address": null,
+            "payment_method": "Card"
+        },
+        "status": "Received"
+    },
+    "0008": {
+        "customer_name": "soulemane",
+        "phone_number": "3475445527",
+        "order_details": {
+            "order_time": "2024-12-14 12:34:24.970265",
+            "pizzas": [
+                {
+                    "quantity": 1,
+                    "size": "Large",
+                    "toppings": "Mushroom",
+                    "extras": []
+                }
+            ],
+            "beverages": [],
+            "extras": [],
+            "delivery_method": "pickup",
+            "address": null,
+            "payment_method": "Cash"
+        },
+        "status": "Received"
+    },
+    "0009": {
+        "customer_name": "Salif",
+        "phone_number": "6465463060",
+        "order_details": {
+            "order_time": "2024-12-14 12:36:58.218373",
+            "pizzas": [
+                {
+                    "quantity": 1,
+                    "size": "Large",
+                    "toppings": "Cheese",
+                    "extras": [
+                        "Chicken"
+                    ]
+                }
+            ],
+            "beverages": [],
+            "extras": [],
+            "delivery_method": "pickup",
+            "address": null,
+            "payment_method": "Card"
+        },
+        "status": "Received"
+    },
+    "0010": {
+        "customer_name": "soulemane",
+        "phone_number": "3475445527",
+        "order_details": {
+            "order_time": "2024-12-14 12:42:52.449017",
+            "pizzas": [
+                {
+                    "quantity": 3,
+                    "size": "Large",
+                    "toppings": "Cheese",
+                    "extras": [
+                        "Chicken"
+                    ]
+                }
+            ],
+            "beverages": [
+                {
+                    "quantity": 3,
+                    "item": "Large Cheese Pizza For Pickup  Add Fanta For A Drink"
+                }
+            ],
+            "extras": [],
+            "delivery_method": "pickup",
+            "address": null,
+            "payment_method": "Cash"
+        },
+        "status": "Received"
+    },
+    "0011": {
+        "customer_name": "soulemane",
+        "phone_number": "3475445527",
+        "order_details": {
+            "order_time": "2024-12-14 12:49:01.090678",
+            "pizzas": [
+                {
+                    "quantity": 1,
+                    "size": "Large",
+                    "toppings": "Cheese",
+                    "extras": [
+                        "Garlic Sause"
+                    ]
+                }
+            ],
+            "beverages": [
+                {
+                    "quantity": 2,
+                    "item": "Coke"
+                }
+            ],
+            "extras": [],
+            "delivery_method": "pickup",
+            "address": null,
+            "payment_method": "Card"
         },
         "status": "Received"
     }

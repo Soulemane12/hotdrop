@@ -2,7 +2,6 @@ import openai
 import os
 import json
 from dotenv import load_dotenv
-import uuid
 import re
 import logging
 import datetime
@@ -20,8 +19,13 @@ logging.basicConfig(
 load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
+# File paths
 ORDERS_FILE = "orders1.json"
 CUSTOMERS_FILE = "customers1.json"
+ORDER_ID_FILE = "last_order_id.txt"
+
+# Initialize a lock for thread safety
+ORDER_ID_LOCK = threading.Lock()
 
 EXIT_PHRASES = [
     "exit", "quit", "bye", "goodbye", "see you", "later", "thanks",
@@ -55,6 +59,7 @@ class ConversationTimer:
 
 def on_timeout():
     print("\nAssistant: It seems you're no longer active. Feel free to reach out if you need anything else. Have a great day!")
+    logging.info("Conversation timed out due to inactivity.")
     exit()
 
 def load_data(file_path):
@@ -74,7 +79,44 @@ def save_data(file_path, data):
         json.dump(data, file, indent=4)
 
 def generate_order_id():
-    return str(uuid.uuid4())
+    with ORDER_ID_LOCK:
+        if not os.path.exists(ORDER_ID_FILE):
+            with open(ORDER_ID_FILE, "w") as f:
+                f.write("0000")
+
+        with open(ORDER_ID_FILE, "r") as f:
+            last_id_str = f.read().strip()
+            try:
+                last_id = int(last_id_str)
+            except ValueError:
+                logging.error(f"Invalid order ID in {ORDER_ID_FILE}. Resetting to 0000.")
+                last_id = 0
+
+        new_id = last_id + 1
+
+        if new_id > 9999:
+            logging.error("Order ID exceeded 9999. Resetting to 0001.")
+            new_id = 1  # Or handle as per your requirement
+
+        new_id_str = f"{new_id:04d}"
+
+        # Optional uniqueness check
+        if new_id_str in orders:
+            logging.error(f"Order ID {new_id_str} already exists. Incrementing to find a unique ID.")
+            while new_id_str in orders and new_id <= 9999:
+                new_id += 1
+                if new_id > 9999:
+                    new_id = 1
+                new_id_str = f"{new_id:04d}"
+            if new_id_str in orders:
+                logging.critical("All order IDs from 0001 to 9999 are in use. Cannot generate a new order ID.")
+                raise Exception("Order ID limit reached.")
+
+        with open(ORDER_ID_FILE, "w") as f:
+            f.write(new_id_str)
+
+    return new_id_str
+
 
 def get_valid_phone_number():
     while True:
@@ -83,70 +125,132 @@ def get_valid_phone_number():
             return phone_number
         else:
             print("Assistant: Please enter a 10-digit phone number without spaces or dashes.")
+            
 
 def get_order_details(user_input):
     """
-    Parses user input to extract order details using regular expressions.
+    Parses user input to extract order details and prompts for missing information.
+    Supports multiple pizzas, beverages, and extra items.
     """
-    order = {}
+    order = {
+        "pizzas": [],
+        "beverages": [],
+        "extras": [],
+        "delivery_method": None,  # Initialize as None
+        "address": None
+    }
 
-    # Extract pizza size
-    size_match = re.search(r"\b(small|medium|large)\b", user_input.lower())
-    if size_match:
-        order["size"] = size_match.group(1).capitalize()
-    else:
-        order["size"] = "Medium"  # Default if not mentioned
+    normalized_input = user_input.lower()
 
-    # Extract toppings
-    # If user mentioned something like "cheese pizza" we try to pick that up
-    # Otherwise default to "Cheese"
-    if "cheese" in user_input.lower():
-        order["toppings"] = "Cheese"
-    else:
-        # Try to extract after the word "pizza" if mentioned
-        toppings_match = re.search(r"pizza with (.+)$", user_input.lower())
-        if toppings_match:
-            order["toppings"] = toppings_match.group(1).strip().title()
-        else:
-            order["toppings"] = "Cheese"
+    # Extract pizza orders: e.g., "one large cheese pizza" or "1 large cheese pizza"
+    pizza_pattern = r"(\b(?:one|two|three|four|five|six|seven|eight|nine|ten|\d+)\b)\s+(small|medium|large)\s+([a-zA-Z\s]+)\s+pizzas?"
+    pizza_matches = re.findall(pizza_pattern, normalized_input)
 
-    # Extract quantity if mentioned (e.g. "3 pizzas")
-    quantity_match = re.search(r"\b(\d+)\s+pizzas?\b", user_input.lower())
-    if quantity_match:
-        order["quantity"] = int(quantity_match.group(1))
-    else:
-        order["quantity"] = 1
+    number_words = {
+        "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+        "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10
+    }
 
-    # Extract delivery method
-    if "delivery" in user_input.lower():
-        order["delivery_method"] = "delivery"
-    elif "pickup" in user_input.lower():
+    for quantity, size, toppings in pizza_matches:
+        # Convert word numbers (e.g., "one") to integers
+        quantity = number_words.get(quantity.lower(), quantity)  # Default to number if numeric
+        order["pizzas"].append({
+            "quantity": int(quantity),
+            "size": size.capitalize(),
+            "toppings": toppings.strip().title(),
+            "extras": []  # Placeholder for additional options
+        })
+
+    # If no pizza orders are found, ask the user
+    if not order["pizzas"]:
+        while True:
+            add_pizza = input("Assistant: What kind of pizza would you like? (e.g., 1 large cheese pizza)\nYou: ")
+            pizza_match = re.match(pizza_pattern, add_pizza.lower())
+            if pizza_match:
+                quantity, size, toppings = pizza_match.groups()
+                quantity = number_words.get(quantity.lower(), quantity)  # Convert word to number if needed
+                order["pizzas"].append({
+                    "quantity": int(quantity),
+                    "size": size.capitalize(),
+                    "toppings": toppings.strip().title(),
+                    "extras": []  # Placeholder for additional options
+                })
+                break
+            else:
+                print("Assistant: Please provide a valid pizza order format (e.g., 1 large cheese pizza).")
+
+    # Ask about extras for each pizza
+    for pizza in order["pizzas"]:
+        extra_question = f"Assistant: Would you like any extras for your {pizza['size']} pizza(s)? (e.g., extra cheese, garlic sauce)\nYou: "
+        extras_response = input(extra_question).strip()
+        if extras_response.lower() not in ["no", "none", "n/a"]:
+            pizza["extras"] = [extra.strip().title() for extra in extras_response.split(",")]
+
+    # Extract beverages dynamically based on user input
+    beverage_pattern = r"(\b(?:one|two|three|four|five|six|seven|eight|nine|ten|\d+)\b)?\s*([a-zA-Z\s]+)"
+    beverage_matches = re.findall(beverage_pattern, normalized_input)
+
+    for quantity, item in beverage_matches:
+        if "pizza" in item:  # Skip non-beverage items
+            continue
+        beverage_name = item.strip().title()
+        quantity = number_words.get(quantity.lower(), quantity) if quantity else 1
+        order["beverages"].append({
+            "quantity": int(quantity),
+            "item": beverage_name
+        })
+
+    # Check if beverages were already found in the input; skip redundant prompting
+    if not order["beverages"]:
+        add_beverages = input("Assistant: Would you like to add any beverages? (e.g., 2 cokes, 1 sprite)\nYou: ")
+        if add_beverages.lower() not in ["no", "none", "n/a"]:
+            additional_beverages = re.findall(beverage_pattern, add_beverages.lower())
+            for quantity, item in additional_beverages:
+                beverage_name = item.strip().title()
+                quantity = number_words.get(quantity.lower(), quantity) if quantity else 1
+                order["beverages"].append({
+                    "quantity": int(quantity),
+                    "item": beverage_name
+                })
+
+    # Ask for extras (e.g., sides, desserts)
+    add_extras = input("Assistant: Would you like to add any extras? (e.g., garlic bread, brownies, dipping sauces)\nYou: ")
+    if add_extras.lower() not in ["no", "none", "n/a"]:
+        extras_list = [extra.strip().title() for extra in add_extras.split(",")]
+        order["extras"] = extras_list
+
+    # Determine delivery method from input or ask
+    if "pickup" in normalized_input:
         order["delivery_method"] = "pickup"
-    else:
-        order["delivery_method"] = "pickup"  # Default if not mentioned
+    elif "delivery" in normalized_input:
+        order["delivery_method"] = "delivery"
 
-    # Extract address if delivery
-    if order.get("delivery_method") == "delivery":
-        address_match = re.search(r"address:\s*(.+)", user_input.lower())
-        if address_match:
-            order["address"] = address_match.group(1).strip().title()
-        else:
-            # If not provided in the initial input, will ask later
-            order["address"] = None
+    if not order["delivery_method"]:
+        while True:
+            delivery_method = input("Assistant: Would you like delivery or pickup?\nYou: ").strip().lower()
+            if delivery_method in ["delivery", "pickup"]:
+                order["delivery_method"] = delivery_method
+                break
+            else:
+                print("Assistant: Please specify either 'delivery' or 'pickup'.")
+
+    # Get delivery address if necessary
+    if order["delivery_method"] == "delivery" and not order["address"]:
+        address = input("Assistant: Please provide your delivery address:\nYou: ")
+        order["address"] = address.title()
     else:
         order["address"] = None
 
     return {
         "order_time": str(datetime.datetime.now()),
-        "pizza": {
-            "quantity": order["quantity"],
-            "size": order["size"],
-            "toppings": order["toppings"]
-        },
+        "pizzas": order["pizzas"],
+        "beverages": order["beverages"],
+        "extras": order["extras"],
         "delivery_method": order["delivery_method"],
         "address": order["address"],
         "payment_method": None
     }
+
 
 def suggest_upsells(order_details):
     try:
@@ -186,40 +290,35 @@ def should_end_conversation(user_input):
     except openai.error.OpenAIError as e:
         logging.error(f"Error in intent detection: {e}")
         return False
-
 def handle_order(phone_number, customer_name, user_input, conversation_history, orders, customers):
     order_details = get_order_details(user_input)
 
-    # If address not found and delivery is chosen, ask now
-    if order_details["delivery_method"] == "delivery" and order_details["address"] is None:
-        address = input("Assistant: What is your delivery address?\nYou: ")
-        order_details["address"] = address.title()
-        conversation_history.append({"role": "user", "content": address})
+    # Build the confirmation message
+    assistant_response = "\nLet me confirm your order:\n"
 
-    # Confirm order details
-    assistant_response = f"\nLet me confirm your order:\n- {order_details['pizza']['quantity']} {order_details['pizza']['size']} pizza(s) with {order_details['pizza']['toppings']}\n- {order_details['delivery_method'].title()}"
+    # List all pizzas
+    for pizza in order_details["pizzas"]:
+        assistant_response += f"- {pizza['quantity']} {pizza['size']} pizza(s) with {pizza['toppings']}\n"
+        if pizza["extras"]:
+            assistant_response += f"  Extras: {', '.join(pizza['extras'])}\n"
+
+    # List all beverages
+    for beverage in order_details["beverages"]:
+        assistant_response += f"- {beverage['quantity']} {beverage['item']}\n"
+
+    # List all extras
+    if order_details["extras"]:
+        assistant_response += f"- Extras: {', '.join(order_details['extras'])}\n"
+
+    # Add delivery method
+    assistant_response += f"- {order_details['delivery_method'].title()}"
     if order_details['address']:
         assistant_response += f"\n- Delivery to: {order_details['address']}"
+
     print(f"Assistant: {assistant_response}")
     conversation_history.append({"role": "assistant", "content": assistant_response})
 
-    # Suggest upsell
-    upsell = suggest_upsells(order_details)
-    if upsell:
-        assistant_response = f"\nWould you like to add {upsell}? (yes/no)"
-        print(f"Assistant: {assistant_response}")
-        conversation_history.append({"role": "assistant", "content": assistant_response})
-
-        upsell_response = input("You: ").lower()
-        conversation_history.append({"role": "user", "content": upsell_response})
-
-        if upsell_response in ["yes", "y", "sure", "ok"]:
-            order_details["extras"] = upsell
-            assistant_response = "Added to your order!"
-            print(f"Assistant: {assistant_response}")
-            conversation_history.append({"role": "assistant", "content": assistant_response})
-
-    # Ask for payment method
+    # Handle payment and confirmation as before
     assistant_response = "How would you like to pay? (cash/card)"
     print(f"Assistant: {assistant_response}")
     conversation_history.append({"role": "assistant", "content": assistant_response})
